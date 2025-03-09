@@ -78,7 +78,7 @@
     <script src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
     <script src="https://static.line-scdn.net/liff/edge/2.1/sdk.js"></script>
     <script>
-        $(document).ready(function () {
+     $(document).ready(function () {
             const liffId = "2006856244-PBALnlRO"; // LIFF ID
 
             const lectures = [
@@ -103,100 +103,96 @@
                 "第19回：6/29（日） 9:00～10:00<br>~立体図形　回転体~",
                 "第20回：7/6（日） 9:00～10:00<br>~場合の数~"
             ];
+        lectures.forEach((lecture, index) => {
+            const isDisabled = (index <= 3) ? "disabled" : "";
+            const labelStyle = (index <= 3) ? "style='text-decoration: line-through; color: gray;'" : "";
 
-            // 講座リスト生成
-            lectures.forEach((lecture, index) => {
-                const isDisabled = (index === 0 || index === 1) ? "disabled" : "";
-                const labelStyle = (index === 0 || index === 1) ? "style='text-decoration: line-through; color: gray;'" : "";
+            $("#lecture-options").append(
+                `<div class="form-check">
+                    <input class="form-check-input lecture-checkbox" type="checkbox" value="${lecture}" id="lecture-${index}" ${isDisabled}>
+                    <label class="form-check-label" for="lecture-${index}" ${labelStyle}>${lecture}</label>
+                </div>`
+            );
+        });
 
+        $("#koma-select").change(function () {
+            const selectedValue = $(this).val();
+            const maxSelection = selectedValue === "free" ? 1 : parseInt(selectedValue);
 
-                $("#lecture-options").append(
-                    `<div class="form-check">
-                        <input class="form-check-input lecture-checkbox" type="checkbox" value="${lecture}" id="lecture-${index}" ${isDisabled}>
-                        <label class="form-check-label" for="lecture-${index}" ${labelStyle}>${lecture}</label>
-                    </div>`
-                );
+            $(".lecture-checkbox").prop("checked", false).prop("disabled", false);
+            $("#lecture-0, #lecture-1, #lecture-2, #lecture-3").prop("disabled", true).prop("checked", false);
+
+            if (selectedValue === "20") {
+                $(".lecture-checkbox").prop("checked", true).prop("disabled", true);
+            } else {
+                $(".lecture-checkbox").not("#lecture-0, #lecture-1, #lecture-2, #lecture-3").prop("disabled", false);
+            }
+
+            $(".lecture-checkbox").not("#lecture-0, #lecture-1, #lecture-2, #lecture-3").off("change").on("change", function () {
+                if ($(".lecture-checkbox:checked").length >= maxSelection) {
+                    $(".lecture-checkbox:not(:checked)").not("#lecture-0, #lecture-1, #lecture-2, #lecture-3").prop("disabled", true);
+                } else {
+                    $(".lecture-checkbox").not("#lecture-0, #lecture-1, #lecture-2, #lecture-3").prop("disabled", false);
+                }
+                updateSubmitButtonState();
             });
 
-            // コマ数選択時の処理
-           $("#koma-select").change(function () {
-    const selectedValue = $(this).val();
-    const maxSelection = selectedValue === "free" ? 1 : parseInt(selectedValue);
+            updateSubmitButtonState();
+        });
 
-    $(".lecture-checkbox").prop("checked", false).prop("disabled", false);
-    $("#lecture-0, #lecture-1").prop("disabled", true).prop("checked", false); // 第1回と第2回は常に無効
-
-    if (selectedValue === "20") {
-        $(".lecture-checkbox").prop("checked", true).prop("disabled", true);
-        $("#lecture-0").prop("checked", true).prop("disabled", true);
-    } else {
-        $(".lecture-checkbox:not(#lecture-0)").prop("disabled", false);
-    }
-
-    $(".lecture-checkbox:not(#lecture-0)").off("change").on("change", function () {
-        if ($(".lecture-checkbox:checked").length >= maxSelection) {
-            $(".lecture-checkbox:not(:checked):not(#lecture-0)").prop("disabled", true);
-        } else {
-            $(".lecture-checkbox:not(#lecture-0)").prop("disabled", false);
-        }
-        updateSubmitButtonState();
-    });
-
-    updateSubmitButtonState();
-});
-
-            const updateSubmitButtonState = () => {
-                const selectedKoma = $("#koma-select").val();
-                const checkedCount = $(".lecture-checkbox:checked").length;
-                const maxSelection = selectedKoma === "free" ? 1 : parseInt(selectedKoma);
+        const updateSubmitButtonState = () => {
+            const selectedKoma = $("#koma-select").val();
+            const checkedCount = $(".lecture-checkbox:checked").length;
+            const maxSelection = selectedKoma === "free" ? 1 : parseInt(selectedKoma);
             $("input[type='submit']").prop("disabled", checkedCount !== maxSelection);
-            };
+        };
 
-            // LIFF 初期化
-            liff.init({ liffId: liffId })
+        // LIFF 初期化
+        liff.init({ liffId: liffId })
+            .then(() => {
+                if (liff.isLoggedIn()) {
+                    liff.getProfile().then(profile => {
+                        $('input[name="line-name"]').val(profile.displayName);
+                    });
+                } else {
+                    liff.login();
+                }
+            });
+
+        // フォーム送信処理
+        $("form").submit(function (event) {
+            event.preventDefault();  // ページリロード防止
+
+            const name = `${$('input[name="last-name"]').val()} ${$('input[name="first-name"]').val()}`;
+            const nameKana = `${$('input[name="last-name-kana"]').val()} ${$('input[name="first-name-kana"]').val()}`;
+            const grade = $('select[name="grade"]').val();
+            const selectedKoma = $('#koma-select').val();
+            const komaMessage = selectedKoma === "free" ? "購入コマ数: 無料1コマ" : `購入コマ数: ${selectedKoma}コマ`;
+
+            const selectedLectures = $(".lecture-checkbox:checked").map(function () {
+                return $(this).val();
+            }).get();
+
+            const msg = `#中学受験ニガテ克服講座-申込フォーム\n`
+                + `LINE名: ${$('input[name="line-name"]').val()}\n`
+                + `生徒様のお名前: ${name}\n`
+                + `ふりがな: ${nameKana}\n`
+                + `学年: ${grade}\n`
+                + `${komaMessage}\n`
+                + `選択した講座:\n${selectedLectures.join("\n")}`;
+
+            liff.sendMessages([{ type: 'text', text: msg }])
                 .then(() => {
-                    if (liff.isLoggedIn()) {
-                        liff.getProfile().then(profile => {
-                            $('input[name="line-name"]').val(profile.displayName);
-                        });
-                    } else {
-                        liff.login();
-                    }
+                    alert("メッセージが送信されました");
+                    liff.closeWindow();
+                })
+                .catch((error) => {
+                    console.error("送信エラー", error);
+                    alert("メッセージ送信に失敗しました");
                 });
 
-            // フォーム送信処理
-            $("form").submit(function (event) {
-    event.preventDefault();  // フォーム送信によるページリロード防止
-
-    const name = `${$('input[name="last-name"]').val()} ${$('input[name="first-name"]').val()}`;
-    const nameKana = `${$('input[name="last-name-kana"]').val()} ${$('input[name="first-name-kana"]').val()}`;
-    const grade = $('select[name="grade"]').val();
-    const selectedKoma = $('#koma-select').val();
-
-    // ここを修正後のコードに置き換え
-    const selectedOption = $("#koma-select option:selected");
-    const selectedType = selectedOption.data("type");
-
-    let komaMessage = `購入コマ数: ${selectedKoma}コマ`;
-    if (selectedType && selectedType === "free") {
-        komaMessage = `購入コマ数: 無料1コマ`;
-    }
-
-    const selectedLectures = $(".lecture-checkbox:checked").map(function () {
-        return $(this).val();
-    }).get();
-
-    const msg = `#中学受験ニガテ克服講座-申込フォーム\nLINE名: ${$('input[name="line-name"]').val()}\n生徒様のお名前: ${name}\nふりがな: ${nameKana}\n学年: ${grade}\n購入コマ数: ${selectedKoma === "free" ? "初回無料" : selectedKoma + "コマ"}\n選択した講座:\n${selectedLectures.join("\n")}`;
-
-    liff.sendMessages([{ type: 'text', text: msg }]).then(() => {
-        alert("メッセージが送信されました");
-        liff.closeWindow();
-    });
-
-    return false;  // ページリロード防止
-});
-
+            return false;  // ページリロード防止
         });
-    </script>
-</body>
-</html>
+
+    });
+</script>
